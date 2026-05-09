@@ -1,0 +1,115 @@
+# Companies to track for the AI industry intelligence system.
+# `cik` is the SEC central index key (10-digit, leading zeros) for US filers.
+# Set `private: true` for non-listed labs that we still track via news.
+
+companies:
+  # --- US-listed AI infrastructure / hyperscalers ---
+  - ticker: NVDA
+    name: NVIDIA
+    exchange: NASDAQ
+    cik: "0001045810"
+    tags: [ai-chip, gpu, infra]
+  - ticker: MSFT
+    name: Microsoft
+    exchange: NASDAQ
+    cik: "0000789019"
+    tags: [hyperscaler, cloud, copilot]
+  - ticker: GOOGL
+    name: Alphabet
+    exchange: NASDAQ
+    cik: "0001652044"
+    tags: [hyperscaler, deepmind, gemini]
+  - ticker: META
+    name: Meta Platforms
+    exchange: NASDAQ
+    cik: "0001326801"
+    tags: [llama, ai-research, ar]
+  - ticker: AMZN
+    name: Amazon
+    exchange: NASDAQ
+    cik: "0001018724"
+    tags: [hyperscaler, aws, bedrock]
+  - ticker: AAPL
+    name: Apple
+    exchange: NASDAQ
+    cik: "0000320193"
+    tags: [device, on-device-ai]
+  - ticker: TSLA
+    name: Tesla
+    exchange: NASDAQ
+    cik: "0001318605"
+    tags: [autonomy, robotics, dojo]
+  - ticker: AMD
+    name: Advanced Micro Devices
+    exchange: NASDAQ
+    cik: "0000002488"
+    tags: [ai-chip, gpu]
+  - ticker: AVGO
+    name: Broadcom
+    exchange: NASDAQ
+    cik: "0001730168"
+    tags: [ai-chip, networking]
+  - ticker: TSM
+    name: TSMC
+    exchange: NYSE
+    tags: [foundry, ai-chip]
+  - ticker: ARM
+    name: Arm Holdings
+    exchange: NASDAQ
+    tags: [ai-chip, ip]
+  - ticker: PLTR
+    name: Palantir
+    exchange: NASDAQ
+    tags: [ai-app, gov]
+  - ticker: SMCI
+    name: Super Micro Computer
+    exchange: NASDAQ
+    tags: [ai-server]
+  - ticker: CRWV
+    name: CoreWeave
+    exchange: NASDAQ
+    tags: [ai-cloud, neocloud]
+  - ticker: ORCL
+    name: Oracle
+    exchange: NYSE
+    tags: [hyperscaler, cloud]
+
+  # --- China / HK ---
+  - ticker: BABA
+    name: Alibaba
+    exchange: NYSE
+    tags: [hyperscaler, qwen]
+  - ticker: BIDU
+    name: Baidu
+    exchange: NASDAQ
+    tags: [llm, ernie]
+  - ticker: "9988.HK"
+    name: Alibaba (HK)
+    exchange: HKEX
+    tags: [hyperscaler]
+  - ticker: "0700.HK"
+    name: Tencent
+    exchange: HKEX
+    tags: [llm, hunyuan]
+
+  # --- Private labs we track via news only ---
+  - ticker: OPENAI
+    name: OpenAI
+    private: true
+    tags: [foundation-model, lab]
+  - ticker: ANTHROPIC
+    name: Anthropic
+    private: true
+    tags: [foundation-model, lab]
+  - ticker: XAI
+    name: xAI
+    private: true
+    tags: [foundation-model, lab]
+  - ticker: MISTRAL
+    name: Mistral AI
+    private: true
+    tags: [foundation-model, lab]
+  - ticker: PERPLEXITY
+    name: Perplexity
+    private: true
+    tags: [ai-search]

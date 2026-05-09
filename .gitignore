@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+.envrc
+
+# data
+data/*.db
+data/*.sqlite
+data/cache/
+data/exports/
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store

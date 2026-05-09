@@ -1,0 +1,59 @@
+# Data sources for AI industry intelligence.
+# `kind` is one of: rss | arxiv | hackernews | sec_edgar | yfinance
+# `weight` (1-10) hints at editorial importance for ranking and digest.
+
+rss:
+  - name: TechCrunch AI
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+    weight: 8
+  - name: The Verge AI
+    url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+    weight: 7
+  - name: MIT Technology Review AI
+    url: https://www.technologyreview.com/topic/artificial-intelligence/feed
+    weight: 8
+  - name: Ars Technica AI
+    url: https://feeds.arstechnica.com/arstechnica/ai
+    weight: 7
+  - name: Anthropic News
+    url: https://www.anthropic.com/news/rss.xml
+    weight: 10
+  - name: OpenAI Blog
+    url: https://openai.com/blog/rss.xml
+    weight: 10
+  - name: Google DeepMind Blog
+    url: https://deepmind.google/blog/rss.xml
+    weight: 9
+  - name: NVIDIA Blog
+    url: https://blogs.nvidia.com/feed/
+    weight: 9
+  - name: HuggingFace Blog
+    url: https://huggingface.co/blog/feed.xml
+    weight: 7
+  - name: Stratechery
+    url: https://stratechery.com/feed/
+    weight: 8
+
+arxiv:
+  - name: arXiv cs.AI
+    category: cs.AI
+    weight: 6
+  - name: arXiv cs.LG
+    category: cs.LG
+    weight: 6
+  - name: arXiv cs.CL
+    category: cs.CL
+    weight: 6
+
+hackernews:
+  - name: Hacker News (front page)
+    min_points: 200
+    weight: 6
+
+sec_edgar:
+  - name: SEC EDGAR (重点 AI 公司)
+    weight: 9
+
+yfinance:
+  - name: Yahoo Finance 行情
+    weight: 5
