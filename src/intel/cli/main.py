@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -48,7 +47,7 @@ def init():
 
 @app.command()
 def collect(
-    kind: Optional[str] = typer.Option(
+    kind: str | None = typer.Option(
         None,
         "--kind",
         "-k",
@@ -71,7 +70,7 @@ def collect(
 @app.command()
 def analyze(
     limit: int = typer.Option(30, help="本次最多分析多少条未处理新闻"),
-    model: Optional[str] = typer.Option(None, help="覆盖默认 Claude 模型"),
+    model: str | None = typer.Option(None, help="覆盖默认 Claude 模型"),
 ):
     """对未分析的新闻调用 Claude 做摘要+影响评估。"""
     n = analyze_pending(limit=limit, model=model)
@@ -82,7 +81,7 @@ def analyze(
 def digest(
     hours: int = typer.Option(24, help="汇总最近多少小时的情报"),
     period: str = typer.Option("daily", help="daily 或 weekly"),
-    model: Optional[str] = typer.Option(None, help="覆盖默认 Claude 模型"),
+    model: str | None = typer.Option(None, help="覆盖默认 Claude 模型"),
 ):
     """生成一份 Markdown 投研简报。"""
     md = build_digest(hours=hours, period=period, model=model)

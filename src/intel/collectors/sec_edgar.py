@@ -5,8 +5,8 @@ Uses the public submissions JSON endpoint:
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Iterable
 
 from intel.collectors.base import http_client
 
@@ -29,7 +29,7 @@ def fetch_filings(cik: str, *, forms: tuple[str, ...] = ("10-K", "10-Q", "8-K", 
     forms_list = recent.get("form", [])
     dates = recent.get("filingDate", [])
     primary_docs = recent.get("primaryDocument", [])
-    for acc, form, date_str, primary in zip(accs, forms_list, dates, primary_docs):
+    for acc, form, date_str, primary in zip(accs, forms_list, dates, primary_docs, strict=False):
         if form not in forms:
             continue
         try:

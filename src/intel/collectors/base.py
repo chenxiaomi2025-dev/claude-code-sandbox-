@@ -1,9 +1,9 @@
 """Shared collector primitives: HTTP client, ticker tagging, dataclasses."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Iterable
 
 import httpx
 

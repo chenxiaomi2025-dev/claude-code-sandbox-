@@ -1,8 +1,8 @@
 """Price history collector via yfinance."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Iterable
 
 import yfinance as yf
 

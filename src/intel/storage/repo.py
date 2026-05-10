@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Iterable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session

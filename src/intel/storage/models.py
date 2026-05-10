@@ -33,8 +33,8 @@ class Company(Base):
     private: Mapped[bool] = mapped_column(Boolean, default=False)
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
-    quotes: Mapped[list["Quote"]] = relationship(back_populates="company", cascade="all, delete-orphan")
-    filings: Mapped[list["Filing"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    quotes: Mapped[list[Quote]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    filings: Mapped[list[Filing]] = relationship(back_populates="company", cascade="all, delete-orphan")
 
 
 class Source(Base):
@@ -67,7 +67,7 @@ class NewsItem(Base):
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     tickers: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
-    analyses: Mapped[list["Analysis"]] = relationship(back_populates="news", cascade="all, delete-orphan")
+    analyses: Mapped[list[Analysis]] = relationship(back_populates="news", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_news_published_desc", "published_at"),

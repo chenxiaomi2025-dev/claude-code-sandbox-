@@ -1,8 +1,8 @@
 """Hacker News top-stories collector via the official Firebase API."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Iterable
 
 from intel.collectors.base import RawItem, http_client
 
