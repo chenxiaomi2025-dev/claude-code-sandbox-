@@ -56,6 +56,7 @@ def upsert_quote(session: Session, *, company_id: int, date: datetime, **prices)
     if obj is None:
         obj = Quote(company_id=company_id, date=date, **prices)
         session.add(obj)
+        session.flush()
     else:
         for k, v in prices.items():
             setattr(obj, k, v)
@@ -68,6 +69,7 @@ def upsert_filing(session: Session, **fields) -> tuple[Filing, bool]:
     if obj is None:
         obj = Filing(**fields)
         session.add(obj)
+        session.flush()
         return obj, True
     return obj, False
 

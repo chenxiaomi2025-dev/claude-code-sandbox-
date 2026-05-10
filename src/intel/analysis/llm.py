@@ -14,6 +14,7 @@ from functools import lru_cache
 
 from anthropic import Anthropic
 
+from intel.analysis.jsonparse import coerce_json
 from intel.config.loader import load_companies
 from intel.config.settings import settings
 
@@ -77,7 +78,7 @@ def analyze_news(*, title: str, body: str, model: str | None = None) -> dict:
         messages=[{"role": "user", "content": user_text}],
     )
     text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
-    return _coerce_json(text)
+    return coerce_json(text)
 
 
 def synthesize_digest(*, items: list[dict], model: str | None = None, period: str = "daily") -> str:
@@ -106,28 +107,3 @@ def synthesize_digest(*, items: list[dict], model: str | None = None, period: st
     return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
 
 
-def _coerce_json(text: str) -> dict:
-    import json
-    import re
-
-    text = text.strip()
-    # try direct parse first
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    # strip markdown fence
-    fence = re.search(r"```(?:json)?\s*(.+?)```", text, re.DOTALL)
-    if fence:
-        try:
-            return json.loads(fence.group(1))
-        except json.JSONDecodeError:
-            pass
-    # last resort: find first { ... } block
-    brace = re.search(r"\{.*\}", text, re.DOTALL)
-    if brace:
-        try:
-            return json.loads(brace.group(0))
-        except json.JSONDecodeError:
-            pass
-    return {"summary_zh": text[:600], "impact": "low", "direction": "neutral", "affected_tickers": [], "themes": [], "rationale": "JSON 解析失败,已存原文摘要"}
