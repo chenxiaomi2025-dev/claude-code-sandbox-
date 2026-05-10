@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -10,6 +11,7 @@ from rich.table import Table
 
 from intel.analysis.alerts import detect_alerts
 from intel.analysis.pipeline import analyze_pending, build_digest
+from intel.analysis.render import render_email
 from intel.collectors.runner import collect_all
 from intel.storage.db import init_db, session_scope
 from intel.storage.repo import (
@@ -152,6 +154,34 @@ def company(ticker: str, days: int = 14, limit: int = 30):
                 impact = (latest.impact or "-").upper()
             table.add_row(t, impact, r.title[:80])
         console.print(table)
+
+
+@app.command()
+def export(
+    out: Path = typer.Option(Path("data/exports/digest.html"), help="输出 HTML 路径"),
+    hours: int = typer.Option(24, help="简报覆盖窗口"),
+    period: str = typer.Option("daily", help="daily / weekly"),
+    skip_llm: bool = typer.Option(False, "--skip-llm", help="不调用 Claude,只渲染最近一份已生成的 digest"),
+):
+    """把最新 digest + alerts 渲染成可邮件发送的 HTML。"""
+    init_db()
+    md = ""
+    if skip_llm:
+        from sqlalchemy import select
+
+        from intel.storage.models import Digest
+
+        with session_scope() as s:
+            d = s.execute(select(Digest).order_by(Digest.created_at.desc()).limit(1)).scalar_one_or_none()
+            md = d.body_md if d else "_数据库内尚无 digest,先跑一次 `intel digest`。_"
+    else:
+        md = build_digest(hours=hours, period=period)
+    with session_scope() as s:
+        all_alerts = detect_alerts(s, hours=hours)
+    html_body = render_email(digest_md=md, alerts=all_alerts, hours=hours)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html_body, encoding="utf-8")
+    console.print(f"[green]HTML 已写入 {out} ({len(html_body):,} bytes, {len(all_alerts)} 告警)[/green]")
 
 
 @app.command()

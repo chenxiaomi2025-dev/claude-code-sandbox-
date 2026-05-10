@@ -47,4 +47,5 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
-ignore = ["E501"]
+# B008: typer.Option used as default is the documented typer pattern
+ignore = ["E501", "B008"]
