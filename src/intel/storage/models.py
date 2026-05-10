@@ -122,6 +122,20 @@ class Filing(Base):
     company: Mapped[Company] = relationship(back_populates="filings")
 
 
+class EarningsEvent(Base):
+    __tablename__ = "earnings_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    expected_date: Mapped[datetime] = mapped_column(DateTime, index=True)
+    source: Mapped[str] = mapped_column(String(32), default="yfinance")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "expected_date", name="uq_earnings_company_date"),
+    )
+
+
 class Digest(Base):
     __tablename__ = "digests"
 

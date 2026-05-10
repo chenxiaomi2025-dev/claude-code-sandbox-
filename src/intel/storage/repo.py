@@ -6,7 +6,16 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from intel.storage.models import Analysis, Company, Digest, Filing, NewsItem, Quote, Source
+from intel.storage.models import (
+    Analysis,
+    Company,
+    Digest,
+    EarningsEvent,
+    Filing,
+    NewsItem,
+    Quote,
+    Source,
+)
 
 
 def upsert_company(session: Session, **fields) -> Company:
@@ -136,6 +145,48 @@ def add_digest(session: Session, **fields) -> Digest:
     session.add(obj)
     session.flush()
     return obj
+
+
+def upsert_earnings_event(
+    session: Session,
+    *,
+    company_id: int,
+    expected_date: datetime,
+    source: str = "yfinance",
+) -> EarningsEvent:
+    obj = session.execute(
+        select(EarningsEvent).where(
+            EarningsEvent.company_id == company_id,
+            EarningsEvent.expected_date == expected_date,
+        )
+    ).scalar_one_or_none()
+    if obj is None:
+        obj = EarningsEvent(
+            company_id=company_id,
+            expected_date=expected_date,
+            source=source,
+            fetched_at=datetime.utcnow(),
+        )
+        session.add(obj)
+        session.flush()
+    else:
+        obj.source = source
+        obj.fetched_at = datetime.utcnow()
+    return obj
+
+
+def upcoming_earnings(
+    session: Session, *, within_days: int = 14
+) -> list[tuple[EarningsEvent, Company]]:
+    now = datetime.utcnow()
+    until = now + timedelta(days=within_days)
+    stmt = (
+        select(EarningsEvent, Company)
+        .join(Company, EarningsEvent.company_id == Company.id)
+        .where(EarningsEvent.expected_date >= now, EarningsEvent.expected_date <= until)
+        .order_by(EarningsEvent.expected_date.asc())
+    )
+    return [(e, c) for e, c in session.execute(stmt).all()]
 
 
 def get_company(session: Session, ticker: str) -> Company | None:

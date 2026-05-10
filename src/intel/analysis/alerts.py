@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from intel.storage.models import Analysis, Filing, NewsItem
+from intel.storage.models import Analysis, Company, EarningsEvent, Filing, NewsItem
 
 
 @dataclass
@@ -103,15 +103,48 @@ def _severity(kind: str, *, llm_impact: str | None = None) -> str:
     }.get(kind, "low")
 
 
-def detect_alerts(session: Session, *, hours: int = 48) -> list[Alert]:
-    """Return alerts derived from the last `hours` of news + filings.
+def detect_alerts(
+    session: Session,
+    *,
+    hours: int = 48,
+    earnings_lookahead_days: int = 7,
+) -> list[Alert]:
+    """Return alerts derived from the last `hours` of news + filings, plus any
+    upcoming earnings dates within `earnings_lookahead_days`.
 
     Earnings filings (10-K / 10-Q) always become alerts. News items become
     alerts when (a) keywords match a kind, or (b) the latest analysis flagged
-    them as high impact.
+    them as high impact. Forward-looking earnings dates are emitted as their
+    own 'earnings_upcoming' alerts so users see them in the daily digest.
     """
     since = datetime.utcnow() - timedelta(hours=hours)
     out: list[Alert] = []
+
+    # 0) Upcoming earnings within the lookahead window
+    now = datetime.utcnow()
+    horizon = now + timedelta(days=earnings_lookahead_days)
+    upcoming = list(
+        session.execute(
+            select(EarningsEvent, Company)
+            .join(Company, EarningsEvent.company_id == Company.id)
+            .where(EarningsEvent.expected_date >= now, EarningsEvent.expected_date <= horizon)
+            .order_by(EarningsEvent.expected_date.asc())
+        ).all()
+    )
+    for event, company in upcoming:
+        days = max(0, (event.expected_date - now).days)
+        sev = "high" if days <= 2 else "medium"
+        out.append(
+            Alert(
+                severity=sev,
+                kind="earnings_upcoming",
+                title=f"{company.ticker} 财报日:{event.expected_date.strftime('%Y-%m-%d')} (T-{days}d)",
+                url="",
+                tickers=[company.ticker],
+                when=event.expected_date,
+                rationale=f"距离财报 {days} 天",
+            )
+        )
 
     # 1) SEC filings — 10-K / 10-Q / 8-K are always interesting
     filings = list(
@@ -168,5 +201,13 @@ def detect_alerts(session: Session, *, hours: int = 48) -> list[Alert]:
             )
         )
 
-    out.sort(key=lambda a: (_SEVERITY_RANK.get(a.severity, 9), -a.when.timestamp()))
+    def _sort_key(a: Alert):
+        rank = _SEVERITY_RANK.get(a.severity, 9)
+        # Within a severity bucket, list upcoming earnings ascending (soonest
+        # first) and past events descending (newest first).
+        if a.kind == "earnings_upcoming":
+            return (rank, 0, a.when.timestamp())
+        return (rank, 1, -a.when.timestamp())
+
+    out.sort(key=_sort_key)
     return out

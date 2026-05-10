@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from intel.collectors import arxiv as arxiv_mod
+from intel.collectors import earnings as earnings_mod
 from intel.collectors import hackernews as hn_mod
 from intel.collectors import quotes as quotes_mod
 from intel.collectors import rss as rss_mod
@@ -15,6 +16,7 @@ from intel.config.loader import company_keywords, load_companies, load_sources
 from intel.storage.db import init_db, session_scope
 from intel.storage.repo import (
     upsert_company,
+    upsert_earnings_event,
     upsert_filing,
     upsert_news,
     upsert_quote,
@@ -150,6 +152,32 @@ def collect_all(*, kinds: tuple[str, ...] | None = None) -> dict[str, CollectSta
                     log.warning("edgar %s failed: %s", c["ticker"], e)
                     stats.failed += 1
             results["sec_edgar"] = stats
+
+        if kinds and "earnings" in kinds:
+            stats = CollectStats()
+            for c in load_companies():
+                if c.get("private"):
+                    continue
+                company = upsert_company(
+                    session,
+                    ticker=c["ticker"],
+                    name=c["name"],
+                    exchange=c.get("exchange"),
+                    cik=c.get("cik"),
+                    private=False,
+                    tags=c.get("tags"),
+                )
+                try:
+                    dates = earnings_mod.fetch_earnings(c["ticker"])
+                except Exception as e:
+                    log.warning("earnings %s failed: %s", c["ticker"], e)
+                    stats.failed += 1
+                    continue
+                for d in dates:
+                    stats.fetched += 1
+                    upsert_earnings_event(session, company_id=company.id, expected_date=d)
+                    stats.new += 1
+            results["earnings"] = stats
 
         if kinds and "yfinance" in kinds:
             stats = CollectStats()

@@ -20,6 +20,7 @@ from intel.storage.repo import (
     news_for_ticker,
     recent_news,
     search_news,
+    upcoming_earnings,
 )
 
 app = typer.Typer(help="AI 产业投资情报系统 (intel)")
@@ -214,6 +215,34 @@ def alerts(
                 t,
                 ",".join(a.tickers) or "-",
                 a.title[:80],
+            )
+        console.print(table)
+
+
+@app.command()
+def calendar(days: int = typer.Option(14, help="向后看多少天的财报日")):
+    """显示未来 N 天的财报日历。先跑 `intel collect --kind earnings` 采集。"""
+    init_db()
+    with session_scope() as s:
+        rows = upcoming_earnings(s, within_days=days)
+        if not rows:
+            console.print(
+                "[yellow]还没有财报数据。先跑 `intel collect --kind earnings`(需要 yfinance + 网络)。[/yellow]"
+            )
+            return
+        table = Table(title=f"未来 {days} 天财报 ({len(rows)})")
+        table.add_column("日期", style="cyan")
+        table.add_column("Ticker", style="bold")
+        table.add_column("公司")
+        table.add_column("距今")
+        now = datetime.utcnow()
+        for ev, comp in rows:
+            d = (ev.expected_date - now).days
+            table.add_row(
+                ev.expected_date.strftime("%Y-%m-%d"),
+                comp.ticker,
+                comp.name,
+                f"T-{max(0, d)}d",
             )
         console.print(table)
 
