@@ -1,5 +1,7 @@
 # AI 产业投资情报系统 (`intel`)
 
+[![ci](https://github.com/chenxiaomi2025-dev/claude-code-sandbox-/actions/workflows/ci.yml/badge.svg)](https://github.com/chenxiaomi2025-dev/claude-code-sandbox-/actions/workflows/ci.yml)
+
 一个聚焦**全球 AI 产业**的命令行投研情报系统:从公开数据源自动采集
 新闻 / 研报 / 论文 / 监管披露 / 行情,再用 Claude 完成中文摘要、影响评估
 和每日简报,数据全部落本地 SQLite。
@@ -9,25 +11,32 @@
 | 模块 | 内容 |
 | --- | --- |
 | 资产范围 | 全球 AI 产业链(芯片 / 云 / 模型实验室 / 应用 / 监管) |
-| 数据源 | RSS、arXiv、Hacker News、SEC EDGAR、yfinance |
+| 数据源 | RSS(英文 + 中文)、arXiv、Hacker News、SEC EDGAR、yfinance |
 | 形式 | CLI(`intel`) + 本地 SQLite |
 | 智能层 | Anthropic Claude(Haiku 做单条三审,Sonnet 做综合简报),启用 prompt caching |
+| 工程 | pytest(≥37 用例)+ ruff + GitHub Actions CI(Python 3.10/3.11/3.12) |
 
 ## 目录结构
 
 ```
 src/intel/
-├── cli/main.py              # typer CLI 入口
+├── cli/main.py              # typer CLI:init/collect/analyze/digest/alerts/export/...
 ├── collectors/              # rss / arxiv / hackernews / sec_edgar / quotes
 │   └── runner.py            # 统一调度,幂等写库
 ├── analysis/
 │   ├── llm.py               # Anthropic SDK 封装(prompt caching)
-│   └── pipeline.py          # 调度未分析新闻 + 生成 digest
+│   ├── jsonparse.py         # LLM JSON 输出容错解析(纯函数)
+│   ├── pipeline.py          # 调度未分析新闻 + 生成 digest
+│   ├── alerts.py            # 规则告警:财报 / 监管 / 高管 / 融资 / 高影响
+│   └── render.py            # Markdown → HTML 邮件渲染(零依赖)
 ├── storage/                 # SQLAlchemy ORM + 仓储函数
 └── config/
-    ├── companies.yaml       # 跟踪标的清单(可改)
-    ├── sources.yaml         # 数据源清单(可改)
+    ├── companies.yaml       # 跟踪标的清单(含中文 aliases)
+    ├── sources.yaml         # 数据源清单(英 + 中文 RSS)
     └── settings.py          # 读 .env 的运行配置
+
+tests/                       # pytest:jsonparse / tag_tickers / config / repo / alerts / render
+.github/workflows/ci.yml     # ruff + pytest on Python 3.10/3.11/3.12
 ```
 
 ## 快速开始
@@ -57,20 +66,38 @@ intel digest --hours 24
 ## 常用命令
 
 ```bash
+# 采集
 intel collect                      # 跑全部数据源
 intel collect --kind rss           # 只跑 RSS
 intel collect --kind sec_edgar     # 抓 EDGAR 备案
-intel collect --kind yfinance      # 抓行情(默认不跑)
+intel collect --kind yfinance      # 抓行情
 
+# 浏览
 intel latest --hours 12            # 最近 12 小时新闻
-intel search "blackwell"           # 关键字搜
+intel search "blackwell"           # 关键字搜(中英文都支持)
 intel company NVDA                 # 看单公司情报
 intel companies                    # 看跟踪清单
 
-intel analyze --limit 50           # 分析未处理新闻
-intel digest --hours 24            # 当日简报
+# AI 分析
+intel analyze --limit 50           # Claude 摘要+影响评估未处理新闻
+intel digest --hours 24            # 当日简报(Sonnet)
 intel digest --hours 168 --period weekly  # 周报
+
+# 告警与导出(不调用 LLM)
+intel alerts --hours 48 --severity high   # 规则告警(财报/监管/高管/融资)
+intel export --out data/exports/today.html        # 渲染 HTML 邮件
+intel export --skip-llm                            # 不调 LLM,复用最近一份 digest
 ```
+
+## 测试与 CI
+
+```bash
+pip install -e ".[dev]"
+pytest                # 37 个单元测试
+ruff check src tests  # 风格检查
+```
+
+CI 在 push / PR 时自动运行 ruff + pytest(Python 3.10/3.11/3.12)。
 
 ## 自定义跟踪范围
 
@@ -105,11 +132,16 @@ intel digest --hours 168 --period weekly  # 周报
 
 ## Roadmap
 
-- [ ] 增加 RSS 翻译(英文新闻直接生成中文摘要,目前已通过 system prompt 强制中文)
-- [ ] 接入 a 股研报(慧博 / 东方财富 / 巨潮)
+- [x] 中文新闻源 RSS(36氪 / 量子位 / 机器之心 / 虎嗅 / InfoQ)
+- [x] 中文公司别名匹配(英伟达 → NVDA、Kimi → MOONSHOT 等)
+- [x] 规则事件告警(财报、监管、高管、融资、高影响)
+- [x] Markdown → HTML 邮件渲染
+- [x] GitHub Actions CI + 37 单元测试
+- [ ] SMTP / Telegram 推送(目前只生成 HTML)
+- [ ] 接入 A 股研报(慧博 / 东方财富 / 巨潮)
 - [ ] Hacker News 评论摘要 / Reddit r/MachineLearning 舆情
-- [ ] Telegram / 邮件推送 digest
-- [ ] 简单的事件驱动告警(财报、监管、CEO 离职)
+- [ ] 回测引擎(基于 quotes 表 + analyses 信号)
+- [ ] 财报日历(下次 earnings call 前 1 周提醒)
 
 ## 开发约定
 
