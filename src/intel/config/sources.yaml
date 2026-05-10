@@ -34,6 +34,23 @@ rss:
     url: https://stratechery.com/feed/
     weight: 8
 
+  # --- 中文 AI 媒体 ---
+  - name: 36氪 AI
+    url: https://36kr.com/feed-newsflash
+    weight: 7
+  - name: 量子位
+    url: https://www.qbitai.com/feed
+    weight: 8
+  - name: 机器之心
+    url: https://www.jiqizhixin.com/rss
+    weight: 8
+  - name: InfoQ 中国 AI
+    url: https://www.infoq.cn/feed.xml
+    weight: 6
+  - name: 虎嗅 AI
+    url: https://www.huxiu.com/rss/0.xml
+    weight: 6
+
 arxiv:
   - name: arXiv cs.AI
     category: cs.AI

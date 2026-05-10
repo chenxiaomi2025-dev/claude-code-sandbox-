@@ -30,3 +30,20 @@ def test_returns_sorted_unique():
     assert out == sorted(set(out))
     assert "MSFT" in out
     assert "ANTHROPIC" in out
+
+
+def test_chinese_aliases_match():
+    out = tag_tickers("英伟达发布新款 Blackwell 芯片,阿里通义千问跟进")
+    assert "NVDA" in out
+    assert "BABA" in out
+
+
+def test_chinese_two_char_alias():
+    out = tag_tickers("腾讯混元发布新版本")
+    assert "0700.HK" in out
+
+
+def test_kimi_and_deepseek_chinese():
+    out = tag_tickers("月之暗面 Kimi 与深度求索 DeepSeek 同日发布")
+    assert "MOONSHOT" in out
+    assert "DEEPSEEK" in out

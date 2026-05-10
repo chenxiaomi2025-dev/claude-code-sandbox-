@@ -31,10 +31,16 @@ def load_sources() -> dict[str, list[dict[str, Any]]]:
 
 
 def company_keywords() -> dict[str, list[str]]:
-    """Return {ticker: [name, alt-names]} used for keyword matching."""
+    """Return {ticker: [name, alt-names, aliases...]} used for keyword matching.
+
+    Aliases declared in companies.yaml under `aliases:` are merged in.
+    """
     out: dict[str, list[str]] = {}
     for c in load_companies():
-        keys = {c["name"]}
+        keys: set[str] = {c["name"]}
+        for a in c.get("aliases") or []:
+            if a:
+                keys.add(a)
         ticker = c["ticker"]
         if not c.get("private"):
             keys.add(ticker.split(".")[0])

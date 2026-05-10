@@ -6,51 +6,61 @@ companies:
   # --- US-listed AI infrastructure / hyperscalers ---
   - ticker: NVDA
     name: NVIDIA
+    aliases: [英伟达]
     exchange: NASDAQ
     cik: "0001045810"
     tags: [ai-chip, gpu, infra]
   - ticker: MSFT
     name: Microsoft
+    aliases: [微软]
     exchange: NASDAQ
     cik: "0000789019"
     tags: [hyperscaler, cloud, copilot]
   - ticker: GOOGL
     name: Alphabet
+    aliases: [谷歌, Google, DeepMind]
     exchange: NASDAQ
     cik: "0001652044"
     tags: [hyperscaler, deepmind, gemini]
   - ticker: META
     name: Meta Platforms
+    aliases: [脸书, Facebook, Meta]
     exchange: NASDAQ
     cik: "0001326801"
     tags: [llama, ai-research, ar]
   - ticker: AMZN
     name: Amazon
+    aliases: [亚马逊, AWS]
     exchange: NASDAQ
     cik: "0001018724"
     tags: [hyperscaler, aws, bedrock]
   - ticker: AAPL
     name: Apple
+    aliases: [苹果]
     exchange: NASDAQ
     cik: "0000320193"
     tags: [device, on-device-ai]
   - ticker: TSLA
     name: Tesla
+    aliases: [特斯拉]
     exchange: NASDAQ
     cik: "0001318605"
     tags: [autonomy, robotics, dojo]
   - ticker: AMD
     name: Advanced Micro Devices
+    aliases: [AMD, 超威]
     exchange: NASDAQ
     cik: "0000002488"
     tags: [ai-chip, gpu]
   - ticker: AVGO
     name: Broadcom
+    aliases: [博通]
     exchange: NASDAQ
     cik: "0001730168"
     tags: [ai-chip, networking]
   - ticker: TSM
     name: TSMC
+    aliases: [台积电]
     exchange: NYSE
     tags: [foundry, ai-chip]
   - ticker: ARM
@@ -77,39 +87,67 @@ companies:
   # --- China / HK ---
   - ticker: BABA
     name: Alibaba
+    aliases: [阿里巴巴, 阿里, 通义, Qwen]
     exchange: NYSE
     tags: [hyperscaler, qwen]
   - ticker: BIDU
     name: Baidu
+    aliases: [百度, 文心一言, 文心]
     exchange: NASDAQ
     tags: [llm, ernie]
   - ticker: "9988.HK"
     name: Alibaba (HK)
+    aliases: [阿里巴巴港股]
     exchange: HKEX
     tags: [hyperscaler]
   - ticker: "0700.HK"
     name: Tencent
+    aliases: [腾讯, 混元, Hunyuan]
     exchange: HKEX
     tags: [llm, hunyuan]
 
   # --- Private labs we track via news only ---
   - ticker: OPENAI
     name: OpenAI
+    aliases: [ChatGPT, GPT-4, GPT-5]
     private: true
     tags: [foundation-model, lab]
   - ticker: ANTHROPIC
     name: Anthropic
+    aliases: [Claude]
     private: true
     tags: [foundation-model, lab]
   - ticker: XAI
     name: xAI
+    aliases: [Grok]
     private: true
     tags: [foundation-model, lab]
   - ticker: MISTRAL
     name: Mistral AI
+    aliases: [Mistral]
     private: true
     tags: [foundation-model, lab]
   - ticker: PERPLEXITY
     name: Perplexity
     private: true
     tags: [ai-search]
+  - ticker: DEEPSEEK
+    name: DeepSeek
+    aliases: [深度求索, 深度求索AI]
+    private: true
+    tags: [foundation-model, lab, china]
+  - ticker: MOONSHOT
+    name: Moonshot AI
+    aliases: [月之暗面, Kimi]
+    private: true
+    tags: [foundation-model, lab, china]
+  - ticker: ZHIPU
+    name: Zhipu AI
+    aliases: [智谱, 智谱AI, GLM]
+    private: true
+    tags: [foundation-model, lab, china]
+  - ticker: MINIMAX
+    name: MiniMax
+    aliases: [稀宇, 海螺AI]
+    private: true
+    tags: [foundation-model, lab, china]

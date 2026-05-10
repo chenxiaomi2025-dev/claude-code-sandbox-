@@ -32,8 +32,17 @@ def http_client() -> httpx.Client:
     )
 
 
+def _has_cjk(s: str) -> bool:
+    return any("一" <= c <= "鿿" for c in s)
+
+
 def tag_tickers(text: str, tickers_keywords: dict[str, list[str]] | None = None) -> list[str]:
-    """Best-effort keyword match of company names/tickers in `text`."""
+    """Best-effort keyword match of company names/tickers/aliases in `text`.
+
+    Min-length filter: ASCII keywords need >2 chars to avoid false positives;
+    CJK keywords need only >=2 chars (Chinese names are dense — "阿里" / "腾讯"
+    are unambiguous).
+    """
     if not text:
         return []
     haystack = text.lower()
@@ -44,8 +53,8 @@ def tag_tickers(text: str, tickers_keywords: dict[str, list[str]] | None = None)
             if not n:
                 continue
             needle = n.lower()
-            if len(needle) <= 2:
-                # avoid ultra-short tokens producing false positives
+            min_len = 2 if _has_cjk(needle) else 3
+            if len(needle) < min_len:
                 continue
             if needle in haystack:
                 found.append(ticker)
