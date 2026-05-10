@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
+from intel.analysis.alerts import detect_alerts
 from intel.analysis.pipeline import analyze_pending, build_digest
 from intel.collectors.runner import collect_all
 from intel.storage.db import init_db, session_scope
@@ -150,6 +151,40 @@ def company(ticker: str, days: int = 14, limit: int = 30):
                 latest = max(r.analyses, key=lambda a: a.created_at)
                 impact = (latest.impact or "-").upper()
             table.add_row(t, impact, r.title[:80])
+        console.print(table)
+
+
+@app.command()
+def alerts(
+    hours: int = typer.Option(48, help="扫描最近多少小时"),
+    severity: str = typer.Option("low", help="最低严重性:critical/high/medium/low"),
+):
+    """扫描已采集情报,输出关键事件清单(基于规则,不调用 LLM)。"""
+    init_db()
+    rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    threshold = rank.get(severity.lower(), 3)
+    with session_scope() as s:
+        items = detect_alerts(s, hours=hours)
+        items = [a for a in items if rank.get(a.severity, 9) <= threshold]
+        if not items:
+            console.print("[green]没有触发告警的事件。[/green]")
+            return
+        table = Table(title=f"事件告警 ({len(items)})")
+        table.add_column("严重性", style="bold")
+        table.add_column("类型")
+        table.add_column("时间", style="cyan")
+        table.add_column("标的")
+        table.add_column("标题")
+        sev_color = {"high": "red", "medium": "yellow", "low": "white", "critical": "red bold"}
+        for a in items:
+            t = a.when.strftime("%m-%d %H:%M")
+            table.add_row(
+                f"[{sev_color.get(a.severity,'white')}]{a.severity.upper()}[/]",
+                a.kind,
+                t,
+                ",".join(a.tickers) or "-",
+                a.title[:80],
+            )
         console.print(table)
 
 
