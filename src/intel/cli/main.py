@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
+from intel.agents.funda_agent import run_funda_agent
 from intel.agents.news_agent import run_news_agent
 from intel.analysis.alerts import detect_alerts
 from intel.analysis.pipeline import analyze_pending, build_digest
@@ -230,17 +231,20 @@ def agent(
     """跑单个 agent。当前已实现:news。后续迭代加入 funda/tech/risk/pm。"""
     init_db()
     ticker = ticker.upper()
-    if role == "news":
-        with session_scope() as s:
-            result = run_news_agent(s, ticker=ticker, days=days, model=model)
-        console.print(
-            f"[bold]news agent[/bold]  ticker={ticker}  model={result.model}  "
-            f"tokens=in/{result.tokens_in} out/{result.tokens_out} cache_read/{result.cache_read}"
-        )
-        console.print(Markdown(result.output_md))
-        return
-    console.print(f"[red]未知角色:{role}。当前可用:news[/red]")
-    raise typer.Exit(1)
+    runners = {
+        "news": lambda s: run_news_agent(s, ticker=ticker, days=days, model=model),
+        "funda": lambda s: run_funda_agent(s, ticker=ticker, days=days, model=model),
+    }
+    if role not in runners:
+        console.print(f"[red]未知角色:{role}。当前可用:{', '.join(runners)}[/red]")
+        raise typer.Exit(1)
+    with session_scope() as s:
+        result = runners[role](s)
+    console.print(
+        f"[bold]{role} agent[/bold]  ticker={ticker}  model={result.model}  "
+        f"tokens=in/{result.tokens_in} out/{result.tokens_out} cache_read/{result.cache_read}"
+    )
+    console.print(Markdown(result.output_md))
 
 
 @app.command()
