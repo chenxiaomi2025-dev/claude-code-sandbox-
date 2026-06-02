@@ -151,6 +151,56 @@ def test_render_report_handles_missing_fields():
     assert "_无_" in md  # empty bullet lists rendered as 无
 
 
+def test_run_decision_runs_analysts_in_parallel(session):
+    """Each analyst call sleeps 200ms in the fake. Sequential = 4 × 200 = 800ms;
+    parallel should beat ~400ms easily (allow generous headroom for CI jitter)."""
+    import time
+
+    class _SlowMessages:
+        def __init__(self):
+            self.calls: list[dict] = []
+            self.role_order: list[str] = []
+
+        def create(self, **kwargs):
+            sys_text = kwargs["system"][0]["text"]
+            for role_marker, role in (
+                ("新闻分析师", "news"), ("基本面分析师", "funda"),
+                ("技术分析师", "tech"), ("风控分析师", "risk"),
+                ("投资组合经理", "pm"),
+            ):
+                if role_marker in sys_text:
+                    self.role_order.append(role)
+                    break
+            self.calls.append(kwargs)
+            time.sleep(0.2)
+            return _FakeResp(RolledFakeClient._RESPONSES[role_marker])
+
+    class _SlowClient:
+        def __init__(self):
+            self.messages = _SlowMessages()
+
+    _seed_ticker(session)
+    slow = _SlowClient()
+    t0 = time.perf_counter()
+    run_decision(session, ticker="NVDA", client=slow, persist=False, parallel=True)
+    elapsed = time.perf_counter() - t0
+    # 4 analysts in parallel ≈ 0.2s, PM sequential ≈ 0.2s → ~0.4-0.5s total.
+    # Sequential would be 5 × 0.2 = 1.0s. Anything under 0.75s proves parallelism.
+    assert elapsed < 0.75, f"parallelism not effective: {elapsed:.3f}s"
+    # PM must be last regardless of how the 4 analysts interleave.
+    assert slow.messages.role_order[-1] == "pm"
+
+
+def test_run_decision_sequential_mode_works(session):
+    """parallel=False is the deterministic debug path; must still produce the
+    same bundle shape."""
+    _seed_ticker(session)
+    fake = RolledFakeClient()
+    bundle = run_decision(session, ticker="NVDA", client=fake, persist=False, parallel=False)
+    assert bundle.decision == "buy"
+    assert len(fake.messages.calls) == 5
+
+
 def test_render_report_surfaces_guardrail():
     md = render_report(
         {"pm": {"decision": "hold", "guardrail_notes": ["原 buy 已降为 hold"]},

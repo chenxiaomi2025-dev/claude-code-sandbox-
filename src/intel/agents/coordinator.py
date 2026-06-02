@@ -8,17 +8,15 @@ report is persisted to the `decisions` table.
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from intel.agents.base import AgentResult
-from intel.agents.funda_agent import run_funda_agent
-from intel.agents.news_agent import run_news_agent
+from intel.agents import funda_agent, news_agent, risk_agent, tech_agent
+from intel.agents.base import AgentResult, run_agent
 from intel.agents.pm_agent import run_pm_agent
-from intel.agents.risk_agent import run_risk_agent
-from intel.agents.tech_agent import run_tech_agent
 from intel.storage.repo import save_decision
 
 
@@ -97,6 +95,107 @@ def render_report(bundle_payload: dict, *, ticker: str) -> str:
     return "\n".join(parts)
 
 
+def _execute_analyst(
+    *,
+    role: str,
+    ticker: str,
+    system: str,
+    user: str,
+    max_tokens: int,
+    overlay: dict | None,
+    overlay_mode: str,
+    client,
+    model: str | None,
+) -> AgentResult:
+    """Run one analyst LLM call and apply role-specific deterministic overlays.
+
+    overlay_mode:
+      - 'replace_indicators': set output_json['indicators'] = overlay
+      - 'merge_counts'      : output_json.update(overlay)  (used by RiskAgent)
+      - 'none'              : leave output_json alone
+    """
+    result = run_agent(
+        role=role, system=system, user=user, model=model, client=client, max_tokens=max_tokens,
+    )
+    if isinstance(result.output_json, dict):
+        result.output_json.setdefault("ticker", ticker)
+        if overlay_mode == "replace_indicators" and overlay is not None:
+            result.output_json["indicators"] = overlay
+        elif overlay_mode == "merge_counts" and overlay is not None:
+            result.output_json.update(overlay)
+    return result
+
+
+def _prepare_analyst_tasks(
+    session: Session,
+    *,
+    ticker: str,
+    news_days: int,
+    funda_days: int,
+    tech_days: int,
+    risk_hours: int,
+) -> list[dict]:
+    """Read all DB context in the main thread and return a list of self-
+    contained task dicts that can be dispatched to a thread pool.
+
+    Every value returned here is a primitive / plain dict — no ORM objects
+    that would lazy-load across threads.
+    """
+    # ---- news ----
+    news_rows = news_agent.gather_context(session, ticker=ticker, days=news_days)
+    news_msg = news_agent.build_user_message(ticker=ticker, news_rows=news_rows, window_days=news_days)
+
+    # ---- funda ----
+    funda_ctx = funda_agent.gather_context(session, ticker=ticker, days=funda_days)
+    funda_msg = funda_agent.build_user_message(funda_ctx, days=funda_days)
+
+    # ---- tech ---- (deterministic indicators get overlaid post-call)
+    tech_ctx = tech_agent.gather_context(session, ticker=ticker, days=tech_days)
+    tech_msg = tech_agent.build_user_message(tech_ctx)
+
+    # ---- risk ---- (deterministic alert count + near_earnings get merged)
+    risk_ctx = risk_agent.gather_context(session, ticker=ticker, hours=risk_hours)
+    risk_msg = risk_agent.build_user_message(risk_ctx)
+
+    return [
+        {
+            "role": "news",
+            "system": news_agent.SYSTEM,
+            "user": news_msg,
+            "max_tokens": 1400,
+            "overlay": None,
+            "overlay_mode": "none",
+        },
+        {
+            "role": "funda",
+            "system": funda_agent.SYSTEM,
+            "user": funda_msg,
+            "max_tokens": 1400,
+            "overlay": None,
+            "overlay_mode": "none",
+        },
+        {
+            "role": "tech",
+            "system": tech_agent.SYSTEM,
+            "user": tech_msg,
+            "max_tokens": 1200,
+            "overlay": tech_ctx["summary"],
+            "overlay_mode": "replace_indicators",
+        },
+        {
+            "role": "risk",
+            "system": risk_agent.SYSTEM,
+            "user": risk_msg,
+            "max_tokens": 1200,
+            "overlay": {
+                "open_alerts": len(risk_ctx.get("alerts") or []),
+                "near_earnings": bool(risk_ctx.get("earnings")),
+            },
+            "overlay_mode": "merge_counts",
+        },
+    ]
+
+
 def run_decision(
     session: Session,
     *,
@@ -109,12 +208,45 @@ def run_decision(
     model_fast: str | None = None,
     model_deep: str | None = None,
     persist: bool = True,
+    parallel: bool = True,
 ) -> DecisionBundle:
-    """Run the full agent pipeline for a single ticker."""
-    news = run_news_agent(session, ticker=ticker, days=news_days, client=client, model=model_fast)
-    funda = run_funda_agent(session, ticker=ticker, days=funda_days, client=client, model=model_fast)
-    tech = run_tech_agent(session, ticker=ticker, days=tech_days, client=client, model=model_fast)
-    risk = run_risk_agent(session, ticker=ticker, hours=risk_hours, client=client, model=model_fast)
+    """Run the full agent pipeline for a single ticker.
+
+    Analysts (news/funda/tech/risk) run in a thread pool because their LLM
+    calls are I/O bound (HTTP to Anthropic). The PM agent runs sequentially
+    afterwards since it depends on all 4 analyst outputs. Set parallel=False
+    for deterministic ordering when debugging.
+    """
+    tasks = _prepare_analyst_tasks(
+        session,
+        ticker=ticker,
+        news_days=news_days,
+        funda_days=funda_days,
+        tech_days=tech_days,
+        risk_hours=risk_hours,
+    )
+
+    def _run(task):
+        return _execute_analyst(
+            role=task["role"], ticker=ticker, system=task["system"], user=task["user"],
+            max_tokens=task["max_tokens"], overlay=task["overlay"], overlay_mode=task["overlay_mode"],
+            client=client, model=model_fast,
+        )
+
+    results: dict[str, AgentResult] = {}
+    if parallel:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for task, fut in zip(tasks, [pool.submit(_run, t) for t in tasks], strict=True):
+                results[task["role"]] = fut.result()
+    else:
+        for task in tasks:
+            results[task["role"]] = _run(task)
+
+    news = results["news"]
+    funda = results["funda"]
+    tech = results["tech"]
+    risk = results["risk"]
+
     pm = run_pm_agent(
         ticker=ticker,
         news_json=news.output_json,
