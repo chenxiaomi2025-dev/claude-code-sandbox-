@@ -11,6 +11,7 @@ from rich.table import Table
 
 from intel.agents.funda_agent import run_funda_agent
 from intel.agents.news_agent import run_news_agent
+from intel.agents.tech_agent import run_tech_agent
 from intel.analysis.alerts import detect_alerts
 from intel.analysis.pipeline import analyze_pending, build_digest
 from intel.analysis.render import render_email
@@ -234,6 +235,7 @@ def agent(
     runners = {
         "news": lambda s: run_news_agent(s, ticker=ticker, days=days, model=model),
         "funda": lambda s: run_funda_agent(s, ticker=ticker, days=days, model=model),
+        "tech": lambda s: run_tech_agent(s, ticker=ticker, days=max(60, days), model=model),
     }
     if role not in runners:
         console.print(f"[red]未知角色:{role}。当前可用:{', '.join(runners)}[/red]")
