@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
+from intel.agents.news_agent import run_news_agent
 from intel.analysis.alerts import detect_alerts
 from intel.analysis.pipeline import analyze_pending, build_digest
 from intel.analysis.render import render_email
@@ -217,6 +218,29 @@ def alerts(
                 a.title[:80],
             )
         console.print(table)
+
+
+@app.command()
+def agent(
+    role: str = typer.Argument(..., help="agent 角色:news (后续会有 funda/tech/risk/pm)"),
+    ticker: str = typer.Argument(..., help="标的 ticker,例如 NVDA"),
+    days: int = typer.Option(14, help="新闻回看窗口(天)"),
+    model: str | None = typer.Option(None, help="覆盖默认 Claude 模型"),
+):
+    """跑单个 agent。当前已实现:news。后续迭代加入 funda/tech/risk/pm。"""
+    init_db()
+    ticker = ticker.upper()
+    if role == "news":
+        with session_scope() as s:
+            result = run_news_agent(s, ticker=ticker, days=days, model=model)
+        console.print(
+            f"[bold]news agent[/bold]  ticker={ticker}  model={result.model}  "
+            f"tokens=in/{result.tokens_in} out/{result.tokens_out} cache_read/{result.cache_read}"
+        )
+        console.print(Markdown(result.output_md))
+        return
+    console.print(f"[red]未知角色:{role}。当前可用:news[/red]")
+    raise typer.Exit(1)
 
 
 @app.command()
