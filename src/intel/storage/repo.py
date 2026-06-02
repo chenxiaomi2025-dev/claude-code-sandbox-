@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from intel.storage.models import (
     Analysis,
     Company,
+    Decision,
     Digest,
     EarningsEvent,
     Filing,
@@ -187,6 +188,43 @@ def upcoming_earnings(
         .order_by(EarningsEvent.expected_date.asc())
     )
     return [(e, c) for e, c in session.execute(stmt).all()]
+
+
+def save_decision(
+    session: Session,
+    *,
+    ticker: str,
+    decision: str,
+    confidence: float | None,
+    horizon: str | None,
+    pm_model: str | None,
+    payload: dict,
+    report_md: str | None,
+) -> Decision:
+    obj = Decision(
+        ticker=ticker,
+        decision=decision,
+        confidence=confidence,
+        horizon=horizon,
+        pm_model=pm_model,
+        payload=payload,
+        report_md=report_md,
+    )
+    session.add(obj)
+    session.flush()
+    return obj
+
+
+def recent_decisions(session: Session, *, limit: int = 50, ticker: str | None = None) -> list[Decision]:
+    stmt = select(Decision).order_by(Decision.created_at.desc()).limit(limit)
+    if ticker:
+        stmt = (
+            select(Decision)
+            .where(Decision.ticker == ticker)
+            .order_by(Decision.created_at.desc())
+            .limit(limit)
+        )
+    return list(session.execute(stmt).scalars())
 
 
 def get_company(session: Session, ticker: str) -> Company | None:

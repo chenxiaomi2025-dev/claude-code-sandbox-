@@ -122,6 +122,20 @@ class Filing(Base):
     company: Mapped[Company] = relationship(back_populates="filings")
 
 
+class Decision(Base):
+    __tablename__ = "decisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(32), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    decision: Mapped[str] = mapped_column(String(16))  # buy/hold/avoid
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    horizon: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    pm_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON)  # full {news, funda, tech, risk, pm} JSON bundle
+    report_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class EarningsEvent(Base):
     __tablename__ = "earnings_events"
 

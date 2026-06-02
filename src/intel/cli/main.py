@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
+from intel.agents.coordinator import run_decision
 from intel.agents.funda_agent import run_funda_agent
 from intel.agents.news_agent import run_news_agent
 from intel.agents.risk_agent import run_risk_agent
@@ -249,6 +250,36 @@ def agent(
         f"tokens=in/{result.tokens_in} out/{result.tokens_out} cache_read/{result.cache_read}"
     )
     console.print(Markdown(result.output_md))
+
+
+@app.command()
+def decide(
+    ticker: str = typer.Argument(..., help="标的 ticker,例如 NVDA"),
+    save_to: Path = typer.Option(
+        Path("data/exports/decisions"),
+        help="把 Markdown 报告写到这个目录",
+    ),
+    news_days: int = typer.Option(14),
+    tech_days: int = typer.Option(120),
+):
+    """跑完整的 5-agent 投研流水线,产出投资决策 + Markdown 报告。"""
+    init_db()
+    ticker = ticker.upper()
+    with session_scope() as s:
+        bundle = run_decision(
+            s,
+            ticker=ticker,
+            news_days=news_days,
+            tech_days=tech_days,
+        )
+        report = bundle.report_md
+        decision_id = bundle.db_id
+    save_to.mkdir(parents=True, exist_ok=True)
+    fname = f"{ticker}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.md"
+    out_path = save_to / fname
+    out_path.write_text(report, encoding="utf-8")
+    console.print(f"[green]决策已写入 {out_path}  (decision_id={decision_id})[/green]")
+    console.print(Markdown(report))
 
 
 @app.command()
