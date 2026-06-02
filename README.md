@@ -2,40 +2,88 @@
 
 [![ci](https://github.com/chenxiaomi2025-dev/claude-code-sandbox-/actions/workflows/ci.yml/badge.svg)](https://github.com/chenxiaomi2025-dev/claude-code-sandbox-/actions/workflows/ci.yml)
 
-一个聚焦**全球 AI 产业**的命令行投研情报系统:从公开数据源自动采集
-新闻 / 研报 / 论文 / 监管披露 / 行情,再用 Claude 完成中文摘要、影响评估
-和每日简报,数据全部落本地 SQLite。
+一个聚焦**全球 AI 产业**的命令行投研情报系统。两层能力:
+
+1. **情报层**:自动采集英中文新闻 / 研报 / 论文 / SEC 披露 / 财报日 / 行情,
+   用 Claude 完成摘要 + 影响评估 + 每日简报。
+2. **决策层**:**5-agent 投研团队**(news / funda / tech / risk / pm),
+   仿 TauricResearch [TradingAgents](https://github.com/TauricResearch/TradingAgents)
+   架构,跑 `intel decide NVDA` 就能拿到 Buy/Hold/Avoid 的投资决策 + Markdown 报告。
 
 ## 设计目标
 
 | 模块 | 内容 |
 | --- | --- |
 | 资产范围 | 全球 AI 产业链(芯片 / 云 / 模型实验室 / 应用 / 监管) |
-| 数据源 | RSS(英文 + 中文)、arXiv、Hacker News、SEC EDGAR、yfinance |
+| 数据源 | RSS(英文 + 中文)、arXiv、Hacker News、SEC EDGAR、yfinance(行情 + 财报日) |
 | 形式 | CLI(`intel`) + 本地 SQLite |
-| 智能层 | Anthropic Claude(Haiku 做单条三审,Sonnet 做综合简报),启用 prompt caching |
-| 工程 | pytest(≥37 用例)+ ruff + GitHub Actions CI(Python 3.10/3.11/3.12) |
+| 智能层 | Anthropic Claude(Haiku 做分析师三审,Sonnet 做 PM 综合),启用 prompt caching |
+| 工程 | pytest(≥91 用例)+ ruff + GitHub Actions CI(Python 3.10/3.11/3.12) |
+
+## 5-Agent 决策流
+
+```
+                      intel decide NVDA
+                              │
+                       ┌──────┴──────┐
+                       │ Coordinator │
+                       └──────┬──────┘
+                              ↓
+   ┌──────────┬──────────┬──────────┬──────────┐
+   ↓          ↓          ↓          ↓          ↓
+ News      Funda      Tech       Risk        ...
+ agent     agent      agent      agent
+ (读       (读 SEC    (本地算    (复用
+ news +    备案 +     MA/RSI/    detect_
+ analyses) yfinance   动量)      alerts +
+           财务比率)              回撤)
+   │          │          │          │
+   └────┬─────┴────┬─────┴────┬─────┘
+        ↓          ↓          ↓
+   4 份结构化 JSON 输入
+                              ↓
+                       ┌──────┴──────┐
+                       │  PM agent   │ ← bull/bear 辩论 + 硬约束 guardrail
+                       │  (Sonnet)   │   (risk=high + bear>bull → 强制 hold)
+                       └──────┬──────┘
+                              ↓
+                  Decision row (DB) + Markdown report
+```
+
+每个 agent 输出 JSON + 中文正文;`tech`/`risk` 会把"确定可算"的字段
+(RSI、MA、open_alerts 等)用 Python 算好再覆盖到 LLM 输出上,避免数据
+被模型幻觉污染。PM 的输出会经过 `_enforce_constraints()` 安全网:
+若 `risk.overall_risk='high'` 且 bear 多于 bull,自动把 buy 降为 hold。
 
 ## 目录结构
 
 ```
 src/intel/
-├── cli/main.py              # typer CLI:init/collect/analyze/digest/alerts/export/...
-├── collectors/              # rss / arxiv / hackernews / sec_edgar / quotes
+├── cli/main.py              # typer CLI:init/collect/analyze/digest/alerts/export/decide/...
+├── collectors/              # rss / arxiv / hackernews / sec_edgar / quotes / earnings
 │   └── runner.py            # 统一调度,幂等写库
 ├── analysis/
 │   ├── llm.py               # Anthropic SDK 封装(prompt caching)
 │   ├── jsonparse.py         # LLM JSON 输出容错解析(纯函数)
 │   ├── pipeline.py          # 调度未分析新闻 + 生成 digest
-│   ├── alerts.py            # 规则告警:财报 / 监管 / 高管 / 融资 / 高影响
+│   ├── alerts.py            # 规则告警:财报 / 监管 / 高管 / 融资 / 高影响 / earnings_upcoming
+│   ├── indicators.py        # 零依赖 SMA / RSI / 动量 / 回撤 / 金叉死叉
 │   └── render.py            # Markdown → HTML 邮件渲染(零依赖)
-├── storage/                 # SQLAlchemy ORM + 仓储函数
+├── agents/                  # 5-agent 投研团队
+│   ├── base.py              # AgentResult + run_agent()(可注入 client,便于测试)
+│   ├── news_agent.py        # 催化剂提取
+│   ├── funda_agent.py       # SEC + yfinance 基本面快照
+│   ├── tech_agent.py        # 技术指标 + 关键位
+│   ├── risk_agent.py        # alerts + 回撤 + 临近财报
+│   ├── pm_agent.py          # bull/bear 辩论 + decision + guardrail
+│   └── coordinator.py       # 编排 5 agent + 持久化 Decision
+├── storage/                 # SQLAlchemy ORM + 仓储函数(含 decisions / earnings_events 表)
 └── config/
     ├── companies.yaml       # 跟踪标的清单(含中文 aliases)
     ├── sources.yaml         # 数据源清单(英 + 中文 RSS)
     └── settings.py          # 读 .env 的运行配置
 
-tests/                       # pytest:jsonparse / tag_tickers / config / repo / alerts / render
+tests/                       # pytest:91 用例,覆盖 agents/indicators/alerts/repo/...
 .github/workflows/ci.yml     # ruff + pytest on Python 3.10/3.11/3.12
 ```
 
@@ -66,27 +114,61 @@ intel digest --hours 24
 ## 常用命令
 
 ```bash
-# 采集
+# === 数据采集 ===
 intel collect                      # 跑全部数据源
 intel collect --kind rss           # 只跑 RSS
 intel collect --kind sec_edgar     # 抓 EDGAR 备案
 intel collect --kind yfinance      # 抓行情
+intel collect --kind earnings      # 抓未来财报日
 
-# 浏览
+# === 浏览 ===
 intel latest --hours 12            # 最近 12 小时新闻
 intel search "blackwell"           # 关键字搜(中英文都支持)
 intel company NVDA                 # 看单公司情报
 intel companies                    # 看跟踪清单
+intel calendar --days 14           # 未来 14 天财报日历
 
-# AI 分析
+# === 情报层(单条 / 全局) ===
 intel analyze --limit 50           # Claude 摘要+影响评估未处理新闻
 intel digest --hours 24            # 当日简报(Sonnet)
-intel digest --hours 168 --period weekly  # 周报
+intel alerts --hours 48 --severity high   # 规则告警
+intel export --out today.html      # 渲染 HTML 邮件
 
-# 告警与导出(不调用 LLM)
-intel alerts --hours 48 --severity high   # 规则告警(财报/监管/高管/融资)
-intel export --out data/exports/today.html        # 渲染 HTML 邮件
-intel export --skip-llm                            # 不调 LLM,复用最近一份 digest
+# === 决策层(5-agent 投研团队) ===
+intel agent news NVDA              # 单跑 NewsAgent(看催化剂)
+intel agent funda NVDA             # 单跑 FundaAgent(基本面快照)
+intel agent tech NVDA              # 单跑 TechAgent(技术面 + 关键位)
+intel agent risk NVDA              # 单跑 RiskAgent(风险评级)
+intel decide NVDA                  # 全流水线 → buy/hold/avoid + 报告
+```
+
+### `intel decide` 输出样例
+
+```markdown
+# NVDA 投研决策 · BUY
+_置信度 72% · 时段 medium · 生成于 2026-06-02 14:51 UTC_
+
+## 投资论断
+算力周期延续,B300 推理芯片单卡 ASP 翻倍 ...
+
+## Bull 论据
+- B300 路线图 2026 Q3 大批量出货
+- 推理 ASP 上行,毛利率扩张
+
+## Bear 论据
+- P/E 偏高,估值已 price in 大部分增长
+
+## 关键风险
+- 出口管制下一轮变更
+
+## 重点跟踪事项
+- FY26Q1 财报(T-20d)
+
+## 分析师快照
+- news: bullish (conf 0.8)
+- funda: narrative=strong
+- tech: view=bullish (RSI 68, MA cross golden)
+- risk: overall_risk=medium, open_alerts=1, near_earnings=False
 ```
 
 ## 测试与 CI
@@ -136,12 +218,22 @@ CI 在 push / PR 时自动运行 ruff + pytest(Python 3.10/3.11/3.12)。
 - [x] 中文公司别名匹配(英伟达 → NVDA、Kimi → MOONSHOT 等)
 - [x] 规则事件告警(财报、监管、高管、融资、高影响)
 - [x] Markdown → HTML 邮件渲染
-- [x] GitHub Actions CI + 37 单元测试
+- [x] GitHub Actions CI + 91 单元测试
+- [x] 财报日历 + T-N 临近告警
+- [x] **5-agent 投研团队 + `intel decide`**
+- [x] 技术指标库(MA / RSI / 动量 / 回撤,零依赖)
+- [x] PM agent 硬约束 guardrail(risk=high 自动降级 buy → hold)
 - [ ] SMTP / Telegram 推送(目前只生成 HTML)
 - [ ] 接入 A 股研报(慧博 / 东方财富 / 巨潮)
 - [ ] Hacker News 评论摘要 / Reddit r/MachineLearning 舆情
-- [ ] 回测引擎(基于 quotes 表 + analyses 信号)
-- [ ] 财报日历(下次 earnings call 前 1 周提醒)
+- [ ] 回测引擎(基于 quotes + decisions 信号)
+- [ ] Web 看板(Streamlit / FastAPI)
+
+## 致谢
+
+多 agent 架构灵感来自 [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents)
+(2024-2026 论文 [arXiv:2412.20138](https://arxiv.org/abs/2412.20138))。
+我们用 5 个角色(news / funda / tech / risk / pm)做了精简化适配。
 
 ## 开发约定
 
